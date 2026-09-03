@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Java Quiz</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --bg: #0f172a;
+    --card: #1e293b;
+    --accent: #38bdf8;
+    --accent-dark: #0284c7;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --correct: #22c55e;
+    --wrong: #ef4444;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Segoe UI", Roboto, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 24px 12px 60px;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; }
+  h1 { text-align: center; font-size: 1.7rem; margin-bottom: 4px; }
+  .subtitle { text-align: center; color: var(--muted); margin-bottom: 28px; }
+
+  .card {
+    background: var(--card);
+    border-radius: 14px;
+    padding: 24px;
+    margin-bottom: 20px;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.35);
+  }
+
+  #startScreen input {
+    width: 100%;
+    padding: 12px 14px;
+    border-radius: 8px;
+    border: 1px solid #334155;
+    background: #0b1220;
+    color: var(--text);
+    font-size: 1rem;
+    margin-bottom: 14px;
+  }
+  button {
+    background: var(--accent);
+    color: #05202f;
+    border: none;
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+  button:hover { background: var(--accent-dark); color: #fff; }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .q-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    color: var(--muted);
+    font-size: 0.9rem;
+    margin-bottom: 6px;
+  }
+  .q-text { font-size: 1.05rem; margin-bottom: 14px; font-weight: 600; }
+  .option {
+    display: block;
+    background: #0b1220;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    cursor: pointer;
+  }
+  .option input { margin-right: 10px; }
+  .option.selected { border-color: var(--accent); background: #0e2a3d; }
+
+  #progressBar {
+    height: 8px;
+    background: #0b1220;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 20px;
+  }
+  #progressFill { height: 100%; background: var(--accent); width: 0%; transition: width 0.2s ease; }
+
+  .nav-row { display: flex; justify-content: space-between; margin-top: 18px; }
+
+  #resultScreen .score-big {
+    font-size: 2.4rem;
+    font-weight: 700;
+    text-align: center;
+    color: var(--accent);
+  }
+  #resultScreen .score-sub { text-align: center; color: var(--muted); margin-bottom: 20px; }
+
+  .review-item { border-top: 1px solid #334155; padding: 12px 0; }
+  .review-item .tag { font-weight: 700; }
+  .tag.correct { color: var(--correct); }
+  .tag.wrong { color: var(--wrong); }
+
+  .hidden { display: none; }
+  .error { color: var(--wrong); margin-top: 10px; }
+  .loader { text-align: center; color: var(--muted); padding: 30px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>☕ Java Quiz</h1>
+  <p class="subtitle">25 questions &middot; 4 marks each &middot; 100 marks total</p>
+
+  <!-- START SCREEN -->
+  <div class="card" id="startScreen">
+    <label for="nameInput">Your name</label>
+    <input id="nameInput" type="text" placeholder="Enter your name" />
+    <button id="startBtn">Generate Quiz &amp; Start</button>
+    <div id="startError" class="error hidden"></div>
+  </div>
+
+  <!-- LOADING -->
+  <div class="card hidden" id="loadingScreen">
+    <p class="loader">Generating questions with Ollama... this can take a little while for 25 questions.</p>
+  </div>
+
+  <!-- QUIZ SCREEN -->
+  <div class="card hidden" id="quizScreen">
+    <div id="progressBar"><div id="progressFill"></div></div>
+    <div class="q-header">
+      <span id="qIndexLabel"></span>
+      <span>4 marks</span>
+    </div>
+    <div class="q-text" id="qText"></div>
+    <div id="optionsList"></div>
+    <div class="nav-row">
+      <button id="prevBtn">&larr; Previous</button>
+      <button id="nextBtn">Next &rarr;</button>
+    </div>
+    <div style="text-align:center; margin-top:16px;">
+      <button id="submitBtn">Submit Quiz</button>
+    </div>
+  </div>
+
+  <!-- RESULT SCREEN -->
+  <div class="card hidden" id="resultScreen">
+    <div class="score-big" id="scoreBig"></div>
+    <div class="score-sub" id="scoreSub"></div>
+    <button id="reviewToggleBtn">Show Answer Review</button>
+    <button id="restartBtn" style="margin-left:10px;">Take New Quiz</button>
+    <div id="reviewList" class="hidden"></div>
+  </div>
+</div>
+
+<script>
+let quizId = null;
+let questions = [];       // [{id, question, options}]
+let answers = {};         // {questionIndex: "A"}
+let currentIndex = 0;
+let studentName = "";
+
+const startScreen = document.getElementById('startScreen');
+const loadingScreen = document.getElementById('loadingScreen');
+const quizScreen = document.getElementById('quizScreen');
+const resultScreen = document.getElementById('resultScreen');
+
+document.getElementById('startBtn').onclick = startQuiz;
+document.getElementById('prevBtn').onclick = () => navigate(-1);
+document.getElementById('nextBtn').onclick = () => navigate(1);
+document.getElementById('submitBtn').onclick = submitQuiz;
+document.getElementById('restartBtn').onclick = () => location.reload();
+document.getElementById('reviewToggleBtn').onclick = toggleReview;
+
+function show(el) { el.classList.remove('hidden'); }
+function hide(el) { el.classList.add('hidden'); }
+
+async function startQuiz() {
+  const nameInput = document.getElementById('nameInput');
+  studentName = nameInput.value.trim();
+  const errEl = document.getElementById('startError');
+  errEl.classList.add('hidden');
+
+  if (!studentName) {
+    errEl.textContent = "Please enter your name.";
+    errEl.classList.remove('hidden');
+    return;
+  }
+
+  hide(startScreen);
+  show(loadingScreen);
+
+  try {
+    const res = await fetch('/api/quiz');
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to generate quiz.");
+
+    quizId = data.quiz_id;
+    questions = data.questions;
+    answers = {};
+    currentIndex = 0;
+
+    hide(loadingScreen);
+    show(quizScreen);
+    renderQuestion();
+  } catch (e) {
+    hide(loadingScreen);
+    show(startScreen);
+    errEl.textContent = e.message;
+    errEl.classList.remove('hidden');
+  }
+}
+
+function renderQuestion() {
+  const q = questions[currentIndex];
+  document.getElementById('qIndexLabel').textContent =
+    `Question ${currentIndex + 1} of ${questions.length}`;
+  document.getElementById('qText').textContent = q.question;
+
+  const pct = ((currentIndex) / questions.length) * 100;
+  document.getElementById('progressFill').style.width = pct + '%';
+
+  const optionsList = document.getElementById('optionsList');
+  optionsList.innerHTML = '';
+  Object.entries(q.options).forEach(([key, text]) => {
+    const label = document.createElement('label');
+    label.className = 'option' + (answers[currentIndex] === key ? ' selected' : '');
+    label.innerHTML = `<input type="radio" name="opt" value="${key}" ${answers[currentIndex] === key ? 'checked' : ''}/> <strong>${key}.</strong> ${text}`;
+    label.onclick = () => {
+      answers[currentIndex] = key;
+      renderQuestion();
+    };
+    optionsList.appendChild(label);
+  });
+
+  document.getElementById('prevBtn').disabled = currentIndex === 0;
+  document.getElementById('nextBtn').disabled = currentIndex === questions.length - 1;
+}
+
+function navigate(delta) {
+  currentIndex = Math.max(0, Math.min(questions.length - 1, currentIndex + delta));
+  renderQuestion();
+}
+
+async function submitQuiz() {
+  const unanswered = questions.length - Object.keys(answers).length;
+  if (unanswered > 0) {
+    if (!confirm(`You have ${unanswered} unanswered question(s). Submit anyway?`)) return;
+  }
+
+  const res = await fetch('/api/submit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      quiz_id: quizId,
+      student_name: studentName,
+      answers: answers
+    })
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    alert(data.error || "Submission failed.");
+    return;
+  }
+
+  hide(quizScreen);
+  show(resultScreen);
+  document.getElementById('scoreBig').textContent = `${data.score} / ${data.total_marks}`;
+  document.getElementById('scoreSub').textContent = `${studentName}, saved to MongoDB (id: ${data.result_id})`;
+
+  const reviewList = document.getElementById('reviewList');
+  reviewList.innerHTML = '';
+  data.details.forEach((d, i) => {
+    const div = document.createElement('div');
+    div.className = 'review-item';
+    div.innerHTML = `
+      <div><strong>Q${i + 1}.</strong> ${d.question}</div>
+      <div>Your answer: ${d.given_answer || '(none)'} &nbsp;|&nbsp; Correct: ${d.correct_answer}
+        &nbsp;<span class="tag ${d.is_correct ? 'correct' : 'wrong'}">${d.is_correct ? 'Correct' : 'Wrong'}</span>
+      </div>`;
+    reviewList.appendChild(div);
+  });
+}
+
+function toggleReview() {
+  const reviewList = document.getElementById('reviewList');
+  reviewList.classList.toggle('hidden');
+  document.getElementById('reviewToggleBtn').textContent =
+    reviewList.classList.contains('hidden') ? 'Show Answer Review' : 'Hide Answer Review';
+}
+</script>
+</body>
+</html>
