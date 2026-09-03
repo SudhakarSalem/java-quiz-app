@@ -16,11 +16,10 @@ OLLAMA_URL = "http://localhost:11434/api/generate"
 # Change this to whatever model you have pulled locally (check with `ollama list`).
 MODEL_NAME = "llama3.2:latest"
 
-PROMPT_TEMPLATE = """You are a Java programming expert creating a multiple choice quiz.
+PROMPT_TEMPLATE = """You are a GENERAL KNOWLEDGE expert creating a multiple choice quiz.
 
-Generate exactly {n} multiple choice questions about the Java programming language.
-Cover a good mix of topics: core syntax, OOP (classes/inheritance/interfaces),
-collections, exceptions, multithreading basics, generics, and the standard library.
+Generate exactly {n} multiple choice questions about the GENERAL KNOWLEDGE.
+Cover a good mix of topics: sports, latest news, science, geographics etc.
 Every question must have exactly one correct answer among 4 options.
 
 Respond with ONLY a single valid JSON object and nothing else - no explanation, no
@@ -33,7 +32,8 @@ exactly {n} question objects. Each question object must have exactly these keys:
 - "correct_answer": one of "A", "B", "C", "D"
 
 Example of the required shape (showing 1 question, you must output {n}):
-{{"questions": [{{"question": "Which keyword is used for inheritance in Java?", "options": {{"A": "implements", "B": "extends", "C": "inherits", "D": "super"}}, "correct_answer": "B"}}]}}
+Which planet in our solar system rotates clockwise on its axis, unlike most other planets?A) MarsB) VenusC) JupiterD) Neptune
+{{"questions": [{{"question": "Which planet in our solar system rotates clockwise on its axis, unlike most other planets?", "options": {{"A": "Mars", "B": "Venus", "C": "jupiter", "D": "neptune"}}, "correct_answer": "B"}}]}}
 """
 
 
